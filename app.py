@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import google.generativeai as genai
+import requests 
 
 # ================= 1. 頁面與基本設定 =================
 st.set_page_config(page_title="DAT.co 指標監控平台", layout="wide")
@@ -19,28 +20,42 @@ MSTR_BTC_HOLDINGS = 252220
 
 # ================= 2. 資料收集與處理 =================
 @st.cache_data(ttl=3600) # 快取 1 小時
+# ================= 2. 資料收集與處理 =================
+@st.cache_data(ttl=3600) # 快取 1 小時
 def load_data():
     try:
-        # 抓取過去一年的資料
-        mstr = yf.Ticker("MSTR")
-        btc = yf.Ticker("BTC-USD")
+        # 建立 Session 並偽裝成一般瀏覽器 (破解 429 Rate Limit 限制的關鍵)
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
+
+        # 抓取過去一年的資料 (將 session 傳入)
+        mstr = yf.Ticker("MSTR", session=session)
+        btc = yf.Ticker("BTC-USD", session=session)
         
         df_mstr = mstr.history(period="1y")[['Close', 'Volume']].rename(columns={'Close': 'MSTR_Price', 'Volume': 'MSTR_Volume'})
         df_btc = btc.history(period="1y")[['Close']].rename(columns={'Close': 'BTC_Price'})
         
-        # 取得目前流通股數 (Shares Outstanding)
-        shares_out = mstr.info.get('sharesOutstanding', 202000000) # 若 API 失敗則給予預設值(考慮分割後)
-        
+        # 取得目前流通股數 (加入 try-except 避免 info 屬性也被限制)
+        try:
+            shares_out = mstr.info.get('sharesOutstanding', 202000000) 
+        except:
+            shares_out = 202000000 # 如果 info 被擋，給予預設股數避免整個網頁崩潰
+            
         # 合併資料 (移除時區以避免報錯)
         df_mstr.index = df_mstr.index.tz_localize(None)
         df_btc.index = df_btc.index.tz_localize(None)
         df = pd.merge(df_mstr, df_btc, left_index=True, right_index=True, how='inner')
         
+        # 假設 MSTR 持有的比特幣數量
+        MSTR_BTC_HOLDINGS = 252220 
+        
         # 計算指標
         df['MSTR_Market_Cap'] = df['MSTR_Price'] * shares_out
         df['BTC_Holdings_Value'] = df['BTC_Price'] * MSTR_BTC_HOLDINGS
         
-        # 計算 NAV Premium (%) = (MSTR市值 / MSTR持有的BTC總價值) - 1
+        # 計算 NAV Premium (%) 
         df['Premium_to_NAV'] = (df['MSTR_Market_Cap'] / df['BTC_Holdings_Value']) - 1
         df['Premium_to_NAV_Pct'] = df['Premium_to_NAV'] * 100
         
