@@ -4,7 +4,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import google.generativeai as genai
-import requests 
 
 # ================= 1. 頁面與基本設定 =================
 st.set_page_config(page_title="DAT.co 指標監控平台", layout="wide")
@@ -20,28 +19,22 @@ MSTR_BTC_HOLDINGS = 252220
 
 # ================= 2. 資料收集與處理 =================
 @st.cache_data(ttl=3600) # 快取 1 小時
+
 # ================= 2. 資料收集與處理 =================
 @st.cache_data(ttl=3600) # 快取 1 小時
 def load_data():
     try:
-        # 建立 Session 並偽裝成一般瀏覽器 (破解 429 Rate Limit 限制的關鍵)
-        session = requests.Session()
-        session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        })
-
-        # 抓取過去一年的資料 (將 session 傳入)
-        mstr = yf.Ticker("MSTR", session=session)
-        btc = yf.Ticker("BTC-USD", session=session)
+        # 1. 直接使用 yfinance，不設定自訂 session
+        mstr = yf.Ticker("MSTR")
+        btc = yf.Ticker("BTC-USD")
         
+        # 2. 只抓取歷史價格 (history API 比較不容易被擋)
         df_mstr = mstr.history(period="1y")[['Close', 'Volume']].rename(columns={'Close': 'MSTR_Price', 'Volume': 'MSTR_Volume'})
         df_btc = btc.history(period="1y")[['Close']].rename(columns={'Close': 'BTC_Price'})
         
-        # 取得目前流通股數 (加入 try-except 避免 info 屬性也被限制)
-        try:
-            shares_out = mstr.info.get('sharesOutstanding', 202000000) 
-        except:
-            shares_out = 202000000 # 如果 info 被擋，給予預設股數避免整個網頁崩潰
+        # 3. 為了避免 429 Rate Limit，我們不再呼叫 mstr.info 抓取股數
+        # 這裡直接寫入 MSTR 近期的流通股數 (Shares Outstanding) 約為 202,000,000 股
+        shares_out = 202000000 
             
         # 合併資料 (移除時區以避免報錯)
         df_mstr.index = df_mstr.index.tz_localize(None)
