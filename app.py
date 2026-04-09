@@ -92,7 +92,7 @@ if st.button("生成分析報告"):
             # 從 Streamlit 系統後台讀取你設定的 API Key
             api_key = st.secrets["GEMINI_API_KEY"]
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-pro')
             
             # 準備給 AI 的近期數據摘要
             recent_data = df.tail(5)[['MSTR_Price', 'BTC_Price', 'Premium_to_NAV_Pct']].to_string()
