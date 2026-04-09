@@ -84,11 +84,13 @@ if df is not None:
 # ================= 4. AI 自動生成總結 (Bonus) =================
 st.markdown("---")
 st.subheader("🤖 AI 趨勢分析 (Bonus Requirement)")
-api_key = st.text_input("請輸入 Gemini API Key (選填)", type="password")
 
+# 移除讓使用者輸入 API Key 的欄位，改為直接提供按鈕
 if st.button("生成分析報告"):
-    if api_key and df is not None:
+    if df is not None:
         try:
+            # 從 Streamlit 系統後台讀取你設定的 API Key
+            api_key = st.secrets["GEMINI_API_KEY"]
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('gemini-1.5-flash')
             
@@ -110,7 +112,9 @@ if st.button("生成分析報告"):
                 st.success("分析完成！")
                 st.info(response.text)
                 
+        except KeyError:
+            st.error("系統尚未設定 API Key，請開發者至 Streamlit 後台設定 `GEMINI_API_KEY`。")
         except Exception as e:
-            st.error(f"AI API 呼叫失敗，請確認 API Key 是否正確。錯誤訊息: {e}")
+            st.error(f"AI API 呼叫失敗。錯誤訊息: {e}")
     else:
-        st.warning("請先輸入 API Key 並確保數據已載入。")
+        st.warning("數據尚未載入，無法分析。")
